@@ -110,4 +110,98 @@ def mars_distance_api(data: dict):
         "status": "SUCCESS"
     }
 
+# =====================================
+# PART 3A - NASA DATA CONFIGURATION
+# =====================================
+
+NASA_MARS_LAYERS = {
+    "viking": {
+        "name": "Viking Global Color Mosaic",
+        "instrument": "Viking VIS",
+        "type": "surface_imagery",
+        "source": "NASA Mars Trek",
+        "capabilities_url": (
+            "https://api.nasa.gov/mars-wmts/catalog/"
+            "Mars_Viking_MDIM21_ClrMosaic_global_232m/"
+            "1.0.0/WMTSCapabilities.xml"
+        )
+    },
+
+    "mola": {
+        "name": "MOLA Global Elevation",
+        "instrument": "Mars Orbiter Laser Altimeter",
+        "type": "elevation",
+        "source": "NASA Mars Trek",
+        "capabilities_url": (
+            "https://api.nasa.gov/mars-wmts/catalog/"
+            "Mars_MGS_MOLA_DEM_mosaic_global_463m_8/"
+            "1.0.0/WMTSCapabilities.xml"
+        )
+    },
+
+    "themis_day": {
+        "name": "THEMIS Day Infrared",
+        "instrument": "Thermal Emission Imaging System",
+        "type": "thermal_imagery",
+        "source": "NASA Mars Trek",
+        "capabilities_url": (
+            "https://api.nasa.gov/mars-wmts/catalog/"
+            "Mars_MO_THEMIS-IR-Day_mosaic_global_100m_v12_clon0_ly/"
+            "1.0.0/WMTSCapabilities.xml"
+        )
+    },
+
+    "hirise": {
+        "name": "HiRISE Curiosity Landing Site Mosaic",
+        "instrument": "High Resolution Imaging Science Experiment",
+        "type": "high_resolution_imagery",
+        "source": "NASA Mars Trek",
+        "capabilities_url": (
+            "https://api.nasa.gov/mars-wmts/catalog/"
+            "curiosity_hirise_mosaic/"
+            "1.0.0/WMTSCapabilities.xml"
+        )
+    },
+
+    "ctx": {
+        "name": "CTX Curiosity Landing Site Mosaic",
+        "instrument": "Context Camera",
+        "type": "regional_imagery",
+        "source": "NASA Mars Trek",
+        "capabilities_url": (
+            "https://api.nasa.gov/mars-wmts/catalog/"
+            "curiosity_ctx_mosaic/"
+            "1.0.0/WMTSCapabilities.xml"
+        )
+    }
+}
+
+# =====================================
+# PART 3B - NASA LAYER ENDPOINTS
+# =====================================
+
+@app.get("/nasa/layers")
+def get_nasa_layers():
+
+    return {
+        "planet": "Mars",
+        "provider": "NASA Mars Trek",
+        "total_layers": len(NASA_MARS_LAYERS),
+        "layers": NASA_MARS_LAYERS
+    }
+
+
+@app.get("/nasa/layers/{layer_id}")
+def get_nasa_layer(layer_id: str):
+
+    if layer_id not in NASA_MARS_LAYERS:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=404,
+            detail="NASA map layer not found"
+        )
+
+    return NASA_MARS_LAYERS[layer_id]
+
+
 

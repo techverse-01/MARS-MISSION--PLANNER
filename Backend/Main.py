@@ -7,7 +7,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
+from fastapi.responses import JSONResponse
 
 # ============================================================
 # PART 1 — APPLICATION SETUP

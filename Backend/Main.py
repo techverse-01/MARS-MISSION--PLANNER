@@ -5,6 +5,10 @@ from pydantic import BaseModel, Field
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import httpx
+import xml.etree.ElementTree as ET
+
+
 app = FastAPI(
     title="MARS GPS",
     description="Mars Navigation System API",
@@ -202,6 +206,73 @@ def get_nasa_layer(layer_id: str):
         )
 
     return NASA_MARS_LAYERS[layer_id]
+
+@app.get("/nasa/layers/{layer_id}/capabilities")
+async def get_nasa_layer_capabilities(layer_id: str):
+
+    layer = NASA_MARS_LAYERS.get(layer_id)
+
+    if not layer:
+        raise HTTPException(
+            status_code=404,
+            detail="NASA Mars layer not found"
+        )
+
+    capabilities_url = layer["capabilities_url"]
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=25.0,
+            follow_redirects=True
+        ) as client:
+
+            response = await client.get(capabilities_url)
+            response.raise_for_status()
+
+        root = ET.fromstring(response.text)
+
+        service_title = None
+        available_layers = []
+
+        for element in root.iter():
+            tag = element.tag.split("}")[-1]
+
+            if tag == "Title" and service_title is None:
+                service_title = element.text
+
+            if tag == "Layer":
+                layer_info = {}
+
+                for child in element:
+                    child_tag = child.tag.split("}")[-1]
+
+                    if child_tag == "Identifier":
+                        layer_info["identifier"] = child.text
+
+                    elif child_tag == "Title":
+                        layer_info["title"] = child.text
+
+                if layer_info:
+                    available_layers.append(layer_info)
+
+        return {
+            "status": "connected",
+            "layer_id": layer_id,
+            "service_title": service_title,
+            "available_layers": available_layers
+        }
+
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=502,
+            detail="NASA map service could not be reached"
+        )
+
+    except ET.ParseError:
+        raise HTTPException(
+            status_code=502,
+            detail="NASA returned an invalid capabilities document"
+        )
 
 
 

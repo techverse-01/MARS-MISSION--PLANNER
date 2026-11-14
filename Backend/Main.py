@@ -274,5 +274,66 @@ async def get_nasa_layer_capabilities(layer_id: str):
             detail="NASA returned an invalid capabilities document"
         )
 
+class MarsRouteRequest(BaseModel):
+    start: MarsCoordinate
+    destination: MarsCoordinate
+    waypoints: list[MarsCoordinate] = Field(
+        default_factory=list,
+        max_length=20
+    )
+    walking_speed_kmh: float = Field(
+        default=4.0,
+        gt=0,
+        le=10
+    )
+
+
+@app.post("/mars/route/estimate")
+def estimate_mars_route(route: MarsRouteRequest):
+
+    points = (
+        [route.start]
+        + route.waypoints
+        + [route.destination]
+    )
+
+    legs = []
+    total_distance = 0.0
+
+    for index in range(len(points) - 1):
+
+        distance = calculate_mars_distance(
+            points[index],
+            points[index + 1]
+        )
+
+        total_distance += distance
+
+        legs.append({
+            "leg": index + 1,
+            "distance_km": round(distance, 3)
+        })
+
+    estimated_hours = (
+        total_distance / route.walking_speed_kmh
+    )
+
+    return {
+        "status": "route_estimated",
+        "planet": "Mars",
+        "total_distance_km": round(total_distance, 3),
+        "walking_speed_kmh": route.walking_speed_kmh,
+        "estimated_travel_hours": round(
+            estimated_hours, 2
+        ),
+        "number_of_waypoints": len(route.waypoints),
+        "legs": legs,
+        "warning": (
+            "Straight-line distance estimate only. "
+            "Terrain hazards and obstacles are not included."
+        )
+    }
+
+
 
 

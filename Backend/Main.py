@@ -334,6 +334,70 @@ def estimate_mars_route(route: MarsRouteRequest):
         )
     }
 
+class MarsSafetyRequest(BaseModel):
+    start: MarsCoordinate
+    destination: MarsCoordinate
+
+    walking_speed_kmh: float = Field(
+        default=4.0,
+        gt=0,
+        le=10
+    )
+
+    max_distance_km: float = Field(
+        default=10.0,
+        gt=0,
+        le=100
+    )
+
+    max_travel_hours: float = Field(
+        default=4.0,
+        gt=0,
+        le=24
+    )
+
+
+@app.post("/mars/route/safety-check")
+def check_mars_route_safety(request: MarsSafetyRequest):
+
+    distance = calculate_mars_distance(
+        request.start,
+        request.destination
+    )
+
+    travel_hours = (
+        distance / request.walking_speed_kmh
+    )
+
+    distance_ok = distance <= request.max_distance_km
+    time_ok = travel_hours <= request.max_travel_hours
+
+    approved_by_limits = distance_ok and time_ok
+
+    warnings = []
+
+    if not distance_ok:
+        warnings.append("Route exceeds the distance limit.")
+
+    if not time_ok:
+        warnings.append("Route exceeds the travel-time limit.")
+
+    if approved_by_limits:
+        warnings.append(
+            "Route fits the selected planning limits. "
+            "Terrain and environmental hazards are not checked."
+        )
+
+    return {
+        "planet": "Mars",
+        "distance_km": round(distance, 3),
+        "estimated_travel_hours": round(travel_hours, 2),
+        "distance_limit_km": request.max_distance_km,
+        "time_limit_hours": request.max_travel_hours,
+        "fits_planning_limits": approved_by_limits,
+        "warnings": warnings
+    }
+
 
 
 

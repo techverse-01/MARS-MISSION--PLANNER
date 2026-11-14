@@ -8,12 +8,48 @@ import heapq
 import json
 import math
 import random
+import os
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
 BASE = Path(__file__).parent
 app = Flask(__name__)
+
+
+# FastAPI backend address. Override with MARS_BACKEND_URL in deployment.
+MARS_BACKEND_URL = os.environ.get("MARS_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
+def backend_request(path, method="GET", payload=None, timeout=8):
+    """Call the FastAPI service and return decoded JSON."""
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    headers = {"Accept": "application/json"}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(
+        MARS_BACKEND_URL + path,
+        data=data,
+        headers=headers,
+        method=method
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8")), response.status
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = json.loads(exc.read().decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            detail = {"detail": "FastAPI returned an HTTP error."}
+        return detail, exc.code
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return {
+            "status": "offline",
+            "detail": "FastAPI backend is unreachable. Start Backend/Main.py on port 8000."
+        }, 503
+
 
 
 def load_grid():
@@ -94,6 +130,40 @@ def api_path():
     dist = sum(math.dist(a, b) for a, b in zip(path, path[1:]))
     return jsonify({"found": True, "path": path, "explored": explored,
                     "steps": len(path) - 1, "cost": round(dist, 2)})
+
+
+# ---------------- FastAPI integration proxy ----------------
+# Browser requests stay same-origin; Flask safely forwards them to FastAPI.
+
+@app.route("/api/backend/status")
+def backend_status():
+    data, status = backend_request("/system/status")
+    data["http_status"] = status
+    data["backend_url"] = MARS_BACKEND_URL
+    return jsonify(data), status
+
+
+@app.route("/api/backend/layers")
+def backend_layers():
+    data, status = backend_request("/nasa/layers")
+    return jsonify(data), status
+
+
+@app.route("/api/backend/layer/<layer_id>/capabilities")
+def backend_layer_capabilities(layer_id):
+    data, status = backend_request(
+        f"/nasa/layers/{layer_id}/capabilities", timeout=15
+    )
+    return jsonify(data), status
+
+
+@app.route("/api/backend/mission/plan", methods=["POST"])
+def backend_mission_plan():
+    payload = request.get_json(silent=True) or {}
+    data, status = backend_request(
+        "/mars/mission/plan", method="POST", payload=payload
+    )
+    return jsonify(data), status
 
 
 if __name__ == "__main__":
